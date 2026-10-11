@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Blood Inventory{% endblock %}
+{% block header_title %}Blood Inventory Reserve{% endblock %}
+
+{% block content %}
+<!-- EDUCATIONAL PROTOTYPE DISCLAIMER -->
+<div class="educational-disclaimer">
+  <i data-lucide="info" style="width: 22px; height: 22px; flex-shrink: 0; color: #2563EB;"></i>
+  <div>
+    <strong>Educational Prototype Notice:</strong>
+    This academic DBMS demonstration maintains simulated blood units per group. In genuine clinical blood banking, individual blood bags require unique barcoded component separation (PRBC, FFP, Platelets), ABO/Rh cross-matching, expiration tracking (35–42 days for RBCs), and certified serological screening.
+  </div>
+</div>
+
+<!-- TOP METRIC & FILTER -->
+<div class="action-toolbar">
+  <div style="display: flex; align-items: baseline; gap: 12px;">
+    <h2 style="font-size: 20px; font-weight: 800; color: var(--text-dark);">
+      Total Stock: <span style="color: var(--primary-red);">{{ total_stock }} Units</span>
+    </h2>
+    <span style="font-size: 13px; color: var(--text-muted);">(Across 8 canonical blood groups)</span>
+  </div>
+
+  <form method="GET" action="{{ url_for('inventory') }}" style="display: flex; gap: 8px;">
+    <select name="blood_group" class="form-control" style="width: 170px;" onchange="this.form.submit()">
+      <option value="">All Blood Groups</option>
+      {% for bg in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] %}
+        <option value="{{ bg }}" {% if search_query == bg %}selected{% endif %}>{{ bg }}</option>
+      {% endfor %}
+    </select>
+    {% if search_query %}
+      <a href="{{ url_for('inventory') }}" class="btn btn-outline-danger btn-sm">Reset</a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- VISUAL CARDS GRID -->
+<div class="inventory-grid">
+  {% for item in items %}
+  <div class="blood-card {% if item.available_units <= low_stock_threshold %}low-stock{% endif %}">
+    <div class="blood-card-top">
+      <span class="blood-type-badge">{{ item.blood_group }}</span>
+      {% if item.available_units <= 2 %}
+        <span class="stock-indicator critical">Critical Stock</span>
+      {% elif item.available_units <= low_stock_threshold %}
+        <span class="stock-indicator low">Low Stock (&le; {{ low_stock_threshold }})</span>
+      {% else %}
+        <span class="stock-indicator adequate">Adequate</span>
+      {% endif %}
+    </div>
+    <div class="units-number">{{ item.available_units }}</div>
+    <div class="units-label">Available Units</div>
+    <div class="blood-card-footer">
+      <span>Auto-updated on Issue/Donation</span>
+      <span>{{ item.last_updated.strftime('%H:%M, %d %b') if item.last_updated else 'Live' }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- DETAILED INVENTORY AUDIT TABLE -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Inventory Master Ledger</div>
+      <div class="card-subtitle">Enforces non-negative stock constraints (CHECK available_units &gt;= 0)</div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Blood Group</th>
+          <th>Available Units</th>
+          <th>Current Status</th>
+          <th>Safety Threshold</th>
+          <th>Last Database Timestamp</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td><span class="badge badge-blood" style="font-size: 14px; padding: 4px 12px;">{{ item.blood_group }}</span></td>
+          <td><strong style="font-size: 16px;">{{ item.available_units }}</strong> units</td>
+          <td>
+            {% if item.available_units <= 2 %}
+              <span class="badge badge-danger">Critical (&le; 2 units)</span>
+            {% elif item.available_units <= low_stock_threshold %}
+              <span class="badge badge-warning">Low Stock (&le; {{ low_stock_threshold }} units)</span>
+            {% else %}
+              <span class="badge badge-success">Sufficient Reserve</span>
+            {% endif %}
+          </td>
+          <td style="color: var(--text-muted);">{{ low_stock_threshold }} units</td>
+          <td style="color: var(--text-muted);">{{ item.last_updated }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

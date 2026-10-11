@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Reports & Analytics{% endblock %}
+{% block header_title %}DBMS Analytics & Aggregates{% endblock %}
+
+{% block content %}
+<!-- SUMMARY CARDS -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon red">
+      <i data-lucide="users"></i>
+    </div>
+    <div class="stat-content">
+      <h3>{{ donor_stats.total_donors }}</h3>
+      <p>Registered Donors ({{ donor_stats.active_donors }} Active)</p>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon green">
+      <i data-lucide="droplet"></i>
+    </div>
+    <div class="stat-content">
+      <h3>{{ total_inventory_units }}</h3>
+      <p>Current Inventory Units</p>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon blue">
+      <i data-lucide="clipboard-check"></i>
+    </div>
+    <div class="stat-content">
+      <h3>{{ request_stats.fulfilled_count or 0 }} / {{ request_stats.total_requests or 0 }}</h3>
+      <p>Fulfilled Requests</p>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon amber">
+      <i data-lucide="package-check"></i>
+    </div>
+    <div class="stat-content">
+      <h3>{{ issue_stats.total_units_issued or 0 }}</h3>
+      <p>Total Units Dispatched</p>
+    </div>
+  </div>
+</div>
+
+<!-- 2-COLUMN SECTION: CHART AND GROUP AGGREGATES -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 24px; margin-bottom: 24px;">
+  <!-- CHART.JS BAR CHART -->
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="bar-chart-2" style="width: 18px; height: 18px; color: var(--primary-red);"></i>
+        Donated Units by Blood Group
+      </div>
+      <div class="card-subtitle">Bar chart rendering GROUP BY aggregate metrics</div>
+    </div>
+    <div style="height: 280px; position: relative;">
+      <canvas id="donationChart"></canvas>
+    </div>
+  </div>
+
+  <!-- GROUP BY AGGREGATE TABLE -->
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="table" style="width: 18px; height: 18px; color: var(--primary-red);"></i>
+        Donations by Blood Group (SQL GROUP BY)
+      </div>
+      <div class="card-subtitle">COUNT(*) and SUM(units_donated)</div>
+    </div>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Blood Group</th>
+            <th>Donation Sessions</th>
+            <th>Total Units Received</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in donations_by_group %}
+          <tr>
+            <td><span class="badge badge-blood">{{ row.blood_group }}</span></td>
+            <td>{{ row.donation_count }} donation(s)</td>
+            <td><strong>{{ row.total_units_donated }}</strong> unit(s)</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="3" style="text-align: center; color: var(--text-muted);">No accepted donations recorded yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM 2-COLUMN: MONTHLY SUMMARY & CURRENT INVENTORY SHARE -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 24px;">
+  <!-- MONTHLY DONATIONS -->
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="calendar" style="width: 18px; height: 18px; color: var(--primary-red);"></i>
+        Monthly Donation Trends
+      </div>
+      <div class="card-subtitle">Aggregated using DATE_FORMAT(donation_date, '%Y-%m')</div>
+    </div>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Accepted Drives</th>
+            <th>Total Units Donated</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in monthly_donations %}
+          <tr>
+            <td style="font-weight: 600;">{{ row.donation_month }}</td>
+            <td>{{ row.donation_count }} sessions</td>
+            <td><strong>{{ row.units_donated }}</strong> unit(s)</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="3" style="text-align: center; color: var(--text-muted);">No monthly data available.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CURRENT INVENTORY DISTRIBUTION -->
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="pie-chart" style="width: 18px; height: 18px; color: var(--primary-red);"></i>
+        Inventory Reserve Distribution
+      </div>
+      <div class="card-subtitle">Live reserve stock share across all blood types</div>
+    </div>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Blood Group</th>
+            <th>Units Stored</th>
+            <th>Share of Total</th>
+            <th>Stock Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in inventory_summary %}
+          {% set pct = (item.available_units / total_inventory_units * 100) if total_inventory_units > 0 else 0 %}
+          <tr>
+            <td><span class="badge badge-blood">{{ item.blood_group }}</span></td>
+            <td><strong>{{ item.available_units }}</strong> unit(s)</td>
+            <td style="color: var(--text-muted);">{{ "%.1f"|format(pct) }}%</td>
+            <td>
+              {% if item.available_units <= 2 %}
+                <span class="badge badge-danger">Critical</span>
+              {% elif item.available_units <= low_stock_threshold %}
+                <span class="badge badge-warning">Low Stock</span>
+              {% else %}
+                <span class="badge badge-success">Adequate</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Render Chart.js Bar Chart for Donations by Blood Group
+  const ctx = document.getElementById('donationChart').getContext('2d');
+  const chartLabels = {{ chart_labels | tojson }};
+  const chartData = {{ chart_data | tojson }};
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: chartLabels,
+      datasets: [{
+        label: 'Units Donated',
+        data: chartData,
+        backgroundColor: 'rgba(220, 53, 69, 0.75)',
+        borderColor: '#DC3545',
+        borderWidth: 1.5,
+        borderRadius: 6,
+        hoverBackgroundColor: '#DC3545'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#212529',
+          padding: 10,
+          cornerRadius: 6,
+          titleFont: { family: 'Inter', size: 13, weight: 'bold' },
+          bodyFont: { family: 'Inter', size: 12 }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1, color: '#6C757D', font: { family: 'Inter', size: 11 } },
+          grid: { color: '#E9ECEF' }
+        },
+        x: {
+          ticks: { color: '#212529', font: { family: 'Inter', size: 12, weight: 'bold' } },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}

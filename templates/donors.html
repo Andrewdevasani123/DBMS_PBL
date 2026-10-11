@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Donor Management{% endblock %}
+{% block header_title %}Donor Registry & Management{% endblock %}
+
+{% block content %}
+<!-- ACTION & FILTER TOOLBAR -->
+<div class="action-toolbar">
+  <form method="GET" action="{{ url_for('donors') }}" class="search-filter-box">
+    <div class="search-input-wrap">
+      <i data-lucide="search"></i>
+      <input 
+        type="text" 
+        name="q" 
+        class="form-control" 
+        placeholder="Search by donor name, phone, or ID..." 
+        value="{{ search_query }}"
+      >
+    </div>
+
+    <select name="blood_group" class="form-control" style="max-width: 160px;" onchange="this.form.submit()">
+      <option value="">All Blood Groups</option>
+      {% for bg in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] %}
+        <option value="{{ bg }}" {% if blood_filter == bg %}selected{% endif %}>{{ bg }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+    {% if search_query or blood_filter %}
+      <a href="{{ url_for('donors') }}" class="btn btn-outline-danger btn-sm">Reset</a>
+    {% endif %}
+  </form>
+
+  <button type="button" class="btn btn-primary" onclick="openModal('addDonorModal')">
+    <i data-lucide="user-plus" style="width: 16px; height: 16px;"></i>
+    Register New Donor
+  </button>
+</div>
+
+<!-- DONORS TABLE CARD -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Registered Donors</div>
+      <div class="card-subtitle">Showing {{ donors|length }} donor profile(s)</div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Full Name</th>
+          <th>Age / Gender</th>
+          <th>Blood Group</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Registered</th>
+          <th>Status</th>
+          <th style="text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for donor in donors %}
+        <tr>
+          <td><strong>#{{ donor.donor_id }}</strong></td>
+          <td style="font-weight: 600;">{{ donor.full_name }}</td>
+          <td>{{ donor.age }} yrs / {{ donor.gender }}</td>
+          <td><span class="badge badge-blood">{{ donor.blood_group }}</span></td>
+          <td>{{ donor.phone }}</td>
+          <td style="color: var(--text-muted);">{{ donor.email or '—' }}</td>
+          <td style="color: var(--text-muted);">{{ donor.registration_date }}</td>
+          <td>
+            {% if donor.is_active %}
+              <span class="badge badge-success">Active</span>
+            {% else %}
+              <span class="badge badge-secondary">Deactivated</span>
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            <div style="display: inline-flex; gap: 6px;">
+              <!-- Edit Button -->
+              <button 
+                type="button" 
+                class="btn btn-outline btn-sm btn-icon" 
+                title="Edit Donor"
+                onclick='populateEditDonor({{ donor | tojson }})'
+              >
+                <i data-lucide="edit-2" style="width: 14px; height: 14px;"></i>
+              </button>
+
+              <!-- Toggle Active / Deactivate Form -->
+              <form method="POST" action="{{ url_for('toggle_donor', donor_id=donor.donor_id) }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if donor.is_active %}
+                  <button 
+                    type="submit" 
+                    class="btn btn-outline-danger btn-sm btn-icon" 
+                    title="Deactivate Donor (Preserves donation history)"
+                    onclick="return confirm('Deactivate donor {{ donor.full_name }}? Historical donation records will remain preserved in the database.')"
+                  >
+                    <i data-lucide="user-x" style="width: 14px; height: 14px;"></i>
+                  </button>
+                {% else %}
+                  <button 
+                    type="submit" 
+                    class="btn btn-outline btn-sm btn-icon" 
+                    title="Reactivate Donor"
+                    style="color: var(--status-success);"
+                  >
+                    <i data-lucide="user-check" style="width: 14px; height: 14px;"></i>
+                  </button>
+                {% endif %}
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 32px;">
+            No donor records match the search criteria.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL: REGISTER NEW DONOR -->
+<div class="modal-backdrop" id="addDonorModal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-title">Register Prospective Donor</div>
+      <button type="button" class="modal-close" onclick="closeModal('addDonorModal')">&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_donor') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="full_name">Full Name *</label>
+          <input type="text" id="full_name" name="full_name" class="form-control" placeholder="e.g. Rahul Sharma" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="age">Age (18 - 65 yrs) *</label>
+            <input type="number" id="age" name="age" class="form-control" min="18" max="65" placeholder="e.g. 25" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="gender">Gender *</label>
+            <select id="gender" name="gender" class="form-control" required>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="blood_group">Blood Group *</label>
+            <select id="blood_group" name="blood_group" class="form-control" required>
+              {% for bg in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] %}
+                <option value="{{ bg }}">{{ bg }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="phone">Phone Number *</label>
+            <input type="tel" id="phone" name="phone" class="form-control" placeholder="10-digit mobile number" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="email">Email Address (Optional)</label>
+          <input type="email" id="email" name="email" class="form-control" placeholder="name@domain.com">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="address">Residential Address (Optional)</label>
+          <textarea id="address" name="address" class="form-control" rows="2" placeholder="Street, locality, city"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('addDonorModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Donor Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: EDIT DONOR -->
+<div class="modal-backdrop" id="editDonorModal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-title">Edit Donor Details</div>
+      <button type="button" class="modal-close" onclick="closeModal('editDonorModal')">&times;</button>
+    </div>
+    <form method="POST" id="editDonorForm" action="">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" id="edit_donor_id" name="donor_id">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="edit_full_name">Full Name *</label>
+          <input type="text" id="edit_full_name" name="full_name" class="form-control" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="edit_age">Age (18 - 65 yrs) *</label>
+            <input type="number" id="edit_age" name="age" class="form-control" min="18" max="65" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit_gender">Gender *</label>
+            <select id="edit_gender" name="gender" class="form-control" required>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="edit_blood_group">Blood Group *</label>
+            <select id="edit_blood_group" name="blood_group" class="form-control" required>
+              {% for bg in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] %}
+                <option value="{{ bg }}">{{ bg }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit_phone">Phone Number *</label>
+            <input type="tel" id="edit_phone" name="phone" class="form-control" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="edit_email">Email Address</label>
+          <input type="email" id="edit_email" name="email" class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="edit_address">Residential Address</label>
+          <textarea id="edit_address" name="address" class="form-control" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editDonorModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update Donor</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

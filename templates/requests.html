@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Blood Requests{% endblock %}
+{% block header_title %}Hospital Blood Requisitions{% endblock %}
+
+{% block content %}
+<!-- ACTION & FILTER TOOLBAR -->
+<div class="action-toolbar">
+  <form method="GET" action="{{ url_for('blood_requests') }}" class="search-filter-box">
+    <div class="search-input-wrap">
+      <i data-lucide="search"></i>
+      <input 
+        type="text" 
+        name="q" 
+        class="form-control" 
+        placeholder="Search patient, hospital, or blood group..." 
+        value="{{ search_query }}"
+      >
+    </div>
+
+    <select name="status" class="form-control" style="max-width: 150px;" onchange="this.form.submit()">
+      <option value="">All Statuses</option>
+      <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+      <option value="Approved" {% if status_filter == 'Approved' %}selected{% endif %}>Approved</option>
+      <option value="Fulfilled" {% if status_filter == 'Fulfilled' %}selected{% endif %}>Fulfilled</option>
+      <option value="Rejected" {% if status_filter == 'Rejected' %}selected{% endif %}>Rejected</option>
+    </select>
+
+    <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+    {% if search_query or status_filter %}
+      <a href="{{ url_for('blood_requests') }}" class="btn btn-outline-danger btn-sm">Reset</a>
+    {% endif %}
+  </form>
+
+  <button type="button" class="btn btn-primary" onclick="openModal('addRequestModal')">
+    <i data-lucide="file-plus" style="width: 16px; height: 16px;"></i>
+    Create Blood Request
+  </button>
+</div>
+
+<!-- REQUESTS TABLE CARD -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Patient Requisition Orders</div>
+      <div class="card-subtitle">Showing {{ requests|length }} request(s) received from hospitals</div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Req ID</th>
+          <th>Patient Name</th>
+          <th>Hospital Name</th>
+          <th>Blood Group</th>
+          <th>Units Required</th>
+          <th>Current Stock in Bank</th>
+          <th>Request Date</th>
+          <th>Status</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for req in requests %}
+        <tr>
+          <td><strong>#REQ-{{ req.request_id }}</strong></td>
+          <td style="font-weight: 600;">{{ req.patient_name }}</td>
+          <td>{{ req.hospital_name }}</td>
+          <td><span class="badge badge-blood">{{ req.blood_group }}</span></td>
+          <td><strong>{{ req.units_required }}</strong> unit(s)</td>
+          <td>
+            {% if req.current_stock is not none %}
+              {% if req.current_stock >= req.units_required %}
+                <span style="color: var(--status-success); font-weight: 600;">
+                  {{ req.current_stock }} units available &check;
+                </span>
+              {% else %}
+                <span style="color: var(--primary-red); font-weight: 600;">
+                  Only {{ req.current_stock }} available &cross;
+                </span>
+              {% endif %}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td style="color: var(--text-muted);">{{ req.request_date }}</td>
+          <td>
+            {% if req.status == 'Fulfilled' %}
+              <span class="badge badge-success">Fulfilled</span>
+            {% elif req.status == 'Approved' %}
+              <span class="badge badge-info">Approved</span>
+            {% elif req.status == 'Pending' %}
+              <span class="badge badge-warning">Pending Review</span>
+            {% else %}
+              <span class="badge badge-danger">Rejected</span>
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            {% if req.status == 'Pending' %}
+              <div style="display: inline-flex; gap: 6px;">
+                <!-- Approve Form -->
+                <form method="POST" action="{{ url_for('update_request_status', request_id=req.request_id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="status" value="Approved">
+                  <button type="submit" class="btn btn-outline btn-sm" style="color: var(--status-success); border-color: #badbcc;" title="Approve Request">
+                    <i data-lucide="check" style="width: 14px; height: 14px;"></i> Approve
+                  </button>
+                </form>
+                <!-- Reject Form -->
+                <form method="POST" action="{{ url_for('update_request_status', request_id=req.request_id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="status" value="Rejected">
+                  <button type="submit" class="btn btn-outline-danger btn-sm" title="Reject Request">
+                    <i data-lucide="x" style="width: 14px; height: 14px;"></i> Reject
+                  </button>
+                </form>
+              </div>
+            {% elif req.status == 'Approved' %}
+              <a href="{{ url_for('blood_issues') }}" class="btn btn-primary btn-sm" title="Proceed to Issue Blood">
+                <i data-lucide="arrow-right" style="width: 14px; height: 14px;"></i> Issue Blood
+              </a>
+            {% else %}
+              <span style="font-size: 11px; color: var(--text-muted);">Completed</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 32px;">
+            No blood request records found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL: CREATE BLOOD REQUEST -->
+<div class="modal-backdrop" id="addRequestModal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-title">Create Hospital Blood Request</div>
+      <button type="button" class="modal-close" onclick="closeModal('addRequestModal')">&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_request') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="patient_name">Patient Full Name *</label>
+          <input type="text" id="patient_name" name="patient_name" class="form-control" placeholder="e.g. Ramesh Kulkarni" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="hospital_name">Hospital / Clinic Name *</label>
+          <input type="text" id="hospital_name" name="hospital_name" class="form-control" placeholder="e.g. Apollo Hospital, Lilavati Hospital" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="req_blood_group">Blood Group Requested *</label>
+            <select id="req_blood_group" name="blood_group" class="form-control" required>
+              {% for bg in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] %}
+                <option value="{{ bg }}">{{ bg }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="units_required">Units Required *</label>
+            <input type="number" id="units_required" name="units_required" class="form-control" value="1" min="1" max="10" required>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('addRequestModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit Blood Request</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

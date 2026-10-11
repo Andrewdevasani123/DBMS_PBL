@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}User Management{% endblock %}
+{% block header_title %}Staff & System Accounts{% endblock %}
+
+{% block content %}
+<div class="action-toolbar">
+  <div>
+    <h2 style="font-size: 18px; font-weight: 700; color: var(--text-dark);">Staff Account Administration</h2>
+    <p style="font-size: 13px; color: var(--text-muted);">Manage login accounts and operational privileges</p>
+  </div>
+
+  <button type="button" class="btn btn-primary" onclick="openModal('addUserModal')">
+    <i data-lucide="user-plus" style="width: 16px; height: 16px;"></i>
+    Add Staff Account
+  </button>
+</div>
+
+<!-- USERS LIST CARD -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>User ID</th>
+          <th>Username</th>
+          <th>Full Name</th>
+          <th>Email Address</th>
+          <th>Role</th>
+          <th>Account Status</th>
+          <th>Created Date</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td><strong>#USR-{{ u.user_id }}</strong></td>
+          <td style="font-weight: 600;"><code>{{ u.username }}</code></td>
+          <td>{{ u.full_name }}</td>
+          <td>{{ u.email }}</td>
+          <td>
+            <span class="role-tag {{ u.role }}">{{ u.role | upper }}</span>
+          </td>
+          <td>
+            {% if u.is_active %}
+              <span class="badge badge-success">Active</span>
+            {% else %}
+              <span class="badge badge-secondary">Deactivated</span>
+            {% endif %}
+          </td>
+          <td style="color: var(--text-muted);">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+          <td style="text-align: right;">
+            {% if u.user_id != current_user.id %}
+              <form method="POST" action="{{ url_for('toggle_user', user_id=u.user_id) }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if u.is_active %}
+                  <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Deactivate account for {{ u.username }}?')">
+                    Deactivate
+                  </button>
+                {% else %}
+                  <button type="submit" class="btn btn-outline btn-sm" style="color: var(--status-success);">
+                    Reactivate
+                  </button>
+                {% endif %}
+              </form>
+            {% else %}
+              <span style="font-size: 11px; color: var(--text-muted); font-style: italic;">Current Session</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL: ADD STAFF ACCOUNT -->
+<div class="modal-backdrop" id="addUserModal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-title">Create New System Account</div>
+      <button type="button" class="modal-close" onclick="closeModal('addUserModal')">&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_user') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="username">Username *</label>
+          <input type="text" id="username" name="username" class="form-control" placeholder="e.g. staff_neha" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="full_name">Full Name & Title *</label>
+          <input type="text" id="full_name" name="full_name" class="form-control" placeholder="e.g. Neha Kulkarni (Nurse / Officer)" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="email">Official Email Address *</label>
+          <input type="email" id="email" name="email" class="form-control" placeholder="neha@bloodbank.org" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="password">Account Password *</label>
+            <input type="password" id="password" name="password" class="form-control" placeholder="Minimum 6 characters" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="role">Assigned Role *</label>
+            <select id="role" name="role" class="form-control" required>
+              <option value="staff" selected>Staff (Standard Operator)</option>
+              <option value="admin">Admin (Full Administrative Privileges)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('addUserModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create User Account</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

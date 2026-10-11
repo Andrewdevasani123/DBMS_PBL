@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block header_title %}Operational Dashboard{% endblock %}
+
+{% block content %}
+<!-- LOW STOCK WARNING BANNER -->
+{% if low_stock_groups %}
+<div class="low-stock-banner">
+  <div class="banner-left">
+    <i data-lucide="alert-triangle" style="width: 24px; height: 24px; color: var(--primary-red);"></i>
+    <div>
+      <div class="banner-title">Low Blood Stock Alert!</div>
+      <div class="banner-desc">
+        The following blood groups have fallen below the reserve threshold ({{ low_stock_threshold }} units):
+        <strong>{% for item in low_stock_groups %}{{ item.blood_group }} ({{ item.available_units }} units){% if not loop.last %}, {% endif %}{% endfor %}</strong>.
+        Please organize voluntary donor drives.
+      </div>
+    </div>
+  </div>
+  <a href="{{ url_for('inventory') }}" class="btn btn-outline-danger btn-sm">
+    View Inventory
+  </a>
+</div>
+{% endif %}
+
+<!-- 4 SUMMARY CARDS -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon red">
+      <i data-lucide="users"></i>
+    </div>
+    <div class="stat-content">
+      <h3>{{ total_donors }}</h3>
+      <p>Active Donors</p>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon blue">
+      <i data-lucide="heart-handshake"></i>
+    </div>
+    <div class="stat-content">
+      <h3>{{ total_donations }}</h3>
+      <p>Total Donations</p>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon green">
+      <i data-lucide="droplet"></i>
+    </div>
+    <div class="stat-content">
+      <h3>{{ available_units }}</h3>
+      <p>Available Blood Units</p>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon amber">
+      <i data-lucide="send"></i>
+    </div>
+    <div class="stat-content">
+      <h3>{{ total_issues }}</h3>
+      <p>Total Issues Fulfilled</p>
+    </div>
+  </div>
+</div>
+
+<!-- CANONICAL BLOOD INVENTORY 4-COLUMN GRID -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">
+        <i data-lucide="boxes" style="width: 18px; height: 18px; color: var(--primary-red);"></i>
+        Live Blood Group Inventory
+      </div>
+      <div class="card-subtitle">Real-time units stored across 8 ABO/Rh blood groups</div>
+    </div>
+    <a href="{{ url_for('inventory') }}" class="btn btn-outline btn-sm">
+      Manage Inventory
+    </a>
+  </div>
+
+  <div class="inventory-grid">
+    {% for item in inventory_items %}
+    <div class="blood-card {% if item.available_units <= low_stock_threshold %}low-stock{% endif %}">
+      <div class="blood-card-top">
+        <span class="blood-type-badge">{{ item.blood_group }}</span>
+        {% if item.available_units <= 2 %}
+          <span class="stock-indicator critical">Critical</span>
+        {% elif item.available_units <= low_stock_threshold %}
+          <span class="stock-indicator low">Low Stock</span>
+        {% else %}
+          <span class="stock-indicator adequate">Adequate</span>
+        {% endif %}
+      </div>
+      <div class="units-number">{{ item.available_units }}</div>
+      <div class="units-label">Available Units</div>
+      <div class="blood-card-footer">
+        <span>Reserve status</span>
+        <span>Updated: {{ item.last_updated.strftime('%H:%M, %d %b') if item.last_updated else 'Recently' }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- RECENT ACTIVITY SECTION (2 COLUMNS) -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
+  <!-- RECENT DONATIONS -->
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="heart" style="width: 18px; height: 18px; color: var(--primary-red);"></i>
+        Recent Blood Donations
+      </div>
+      <a href="{{ url_for('donations') }}" class="btn btn-outline btn-sm">View All</a>
+    </div>
+
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Donor</th>
+            <th>Group</th>
+            <th>Units</th>
+            <th>Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for don in recent_donations %}
+          <tr>
+            <td style="font-weight: 600;">{{ don.donor_name }}</td>
+            <td><span class="badge badge-blood">{{ don.blood_group }}</span></td>
+            <td>{{ don.units_donated }} unit(s)</td>
+            <td style="color: var(--text-muted);">{{ don.donation_date }}</td>
+            <td>
+              {% if don.status == 'Accepted' %}
+                <span class="badge badge-success">Accepted</span>
+              {% elif don.status == 'Pending' %}
+                <span class="badge badge-warning">Pending</span>
+              {% else %}
+                <span class="badge badge-danger">Rejected</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+              No donations recorded yet.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RECENT BLOOD REQUESTS -->
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="clipboard-list" style="width: 18px; height: 18px; color: var(--primary-red);"></i>
+        Recent Hospital Requests
+      </div>
+      <a href="{{ url_for('blood_requests') }}" class="btn btn-outline btn-sm">View All</a>
+    </div>
+
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Patient</th>
+            <th>Hospital</th>
+            <th>Group</th>
+            <th>Units</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for req in recent_requests %}
+          <tr>
+            <td style="font-weight: 600;">{{ req.patient_name }}</td>
+            <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ req.hospital_name }}">
+              {{ req.hospital_name }}
+            </td>
+            <td><span class="badge badge-blood">{{ req.blood_group }}</span></td>
+            <td>{{ req.units_required }} unit(s)</td>
+            <td>
+              {% if req.status == 'Fulfilled' %}
+                <span class="badge badge-success">Fulfilled</span>
+              {% elif req.status == 'Approved' %}
+                <span class="badge badge-info">Approved</span>
+              {% elif req.status == 'Pending' %}
+                <span class="badge badge-warning">Pending</span>
+              {% else %}
+                <span class="badge badge-danger">Rejected</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+              No blood requests recorded yet.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

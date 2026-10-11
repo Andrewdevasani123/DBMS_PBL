@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Blood Donations{% endblock %}
+{% block header_title %}Donation Records & Intake{% endblock %}
+
+{% block content %}
+<!-- ACTION & FILTER TOOLBAR -->
+<div class="action-toolbar">
+  <form method="GET" action="{{ url_for('donations') }}" class="search-filter-box">
+    <div class="search-input-wrap">
+      <i data-lucide="search"></i>
+      <input 
+        type="text" 
+        name="q" 
+        class="form-control" 
+        placeholder="Search by donor name or blood group..." 
+        value="{{ search_query }}"
+      >
+    </div>
+
+    <select name="status" class="form-control" style="max-width: 150px;" onchange="this.form.submit()">
+      <option value="">All Statuses</option>
+      <option value="Accepted" {% if status_filter == 'Accepted' %}selected{% endif %}>Accepted</option>
+      <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+      <option value="Rejected" {% if status_filter == 'Rejected' %}selected{% endif %}>Rejected</option>
+    </select>
+
+    <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+    {% if search_query or status_filter %}
+      <a href="{{ url_for('donations') }}" class="btn btn-outline-danger btn-sm">Reset</a>
+    {% endif %}
+  </form>
+
+  <button type="button" class="btn btn-primary" onclick="openModal('addDonationModal')">
+    <i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i>
+    Record New Donation
+  </button>
+</div>
+
+<!-- DONATIONS TABLE CARD -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Blood Donation Logs</div>
+      <div class="card-subtitle">Showing {{ donations|length }} transactional intake records</div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Donation ID</th>
+          <th>Donor</th>
+          <th>Blood Group</th>
+          <th>Units</th>
+          <th>Donation Date</th>
+          <th>Status</th>
+          <th>Recorded By</th>
+          <th>Inventory Sync</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for don in donations %}
+        <tr>
+          <td><strong>#DON-{{ don.donation_id }}</strong></td>
+          <td>
+            <div style="font-weight: 600;">{{ don.donor_name }}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">{{ don.donor_phone }}</div>
+          </td>
+          <td><span class="badge badge-blood">{{ don.blood_group }}</span></td>
+          <td><strong>{{ don.units_donated }}</strong> unit(s)</td>
+          <td style="color: var(--text-muted);">{{ don.donation_date }}</td>
+          <td>
+            {% if don.status == 'Accepted' %}
+              <span class="badge badge-success">Accepted</span>
+            {% elif don.status == 'Pending' %}
+              <span class="badge badge-warning">Pending Review</span>
+            {% else %}
+              <span class="badge badge-danger">Rejected</span>
+            {% endif %}
+          </td>
+          <td style="font-size: 12px; color: var(--text-muted);">{{ don.recorded_by_name.split('(')[0] }}</td>
+          <td>
+            {% if don.inventory_updated %}
+              <span style="color: var(--status-success); font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                <i data-lucide="check-circle" style="width: 14px; height: 14px;"></i> Added to Stock
+              </span>
+            {% else %}
+              <span style="color: var(--text-muted); font-size: 12px;">Not in Stock</span>
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            {% if don.status == 'Pending' %}
+              <div style="display: inline-flex; gap: 6px;">
+                <!-- Accept Donation Form -->
+                <form method="POST" action="{{ url_for('update_donation_status', donation_id=don.donation_id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="status" value="Accepted">
+                  <button type="submit" class="btn btn-outline btn-sm" style="color: var(--status-success); border-color: #badbcc;" title="Clear and add to inventory">
+                    <i data-lucide="check" style="width: 14px; height: 14px;"></i> Accept
+                  </button>
+                </form>
+                <!-- Reject Donation Form -->
+                <form method="POST" action="{{ url_for('update_donation_status', donation_id=don.donation_id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="status" value="Rejected">
+                  <button type="submit" class="btn btn-outline-danger btn-sm" title="Reject donation">
+                    <i data-lucide="x" style="width: 14px; height: 14px;"></i> Reject
+                  </button>
+                </form>
+              </div>
+            {% else %}
+              <span style="font-size: 11px; color: var(--text-muted);">Locked</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 32px;">
+            No donation records found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL: RECORD DONATION -->
+<div class="modal-backdrop" id="addDonationModal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-title">Record Blood Donation</div>
+      <button type="button" class="modal-close" onclick="closeModal('addDonationModal')">&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_donation') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="donation_donor_select">Select Registered Donor *</label>
+          <select id="donation_donor_select" name="donor_id" class="form-control" required>
+            <option value="">-- Choose active donor --</option>
+            {% for d in active_donors %}
+              <option value="{{ d.donor_id }}" data-blood-group="{{ d.blood_group }}">
+                {{ d.full_name }} ({{ d.blood_group }}) - Phone: {{ d.phone }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Blood group is automatically derived from donor medical record.</div>
+        </div>
+
+        <div class="form-group" style="display: none; background: var(--bg-subtle); padding: 10px 14px; border-radius: 8px;">
+          <div style="font-size: 12px; color: var(--text-muted);">Donor Blood Group:</div>
+          <div id="donation_blood_group_display" style="font-size: 16px; font-weight: 800; color: var(--primary-red);"></div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="units_donated">Units Donated *</label>
+            <input type="number" id="units_donated" name="units_donated" class="form-control" value="1" min="1" max="10" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="donation_date">Donation Date *</label>
+            <input type="date" id="donation_date" name="donation_date" class="form-control" value="{{ now.strftime('%Y-%m-%d') }}" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="donation_status">Initial Clearance Status *</label>
+          <select id="donation_status" name="status" class="form-control" required>
+            <option value="Accepted">Accepted (Screened & Increment Stock)</option>
+            <option value="Pending">Pending (Awaiting Lab Tests)</option>
+            <option value="Rejected">Rejected (Failed Screen / Discard)</option>
+          </select>
+          <div class="form-text">Only "Accepted" donations immediately increase available stock in inventory.</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="remarks">Lab Remarks / Notes (Optional)</label>
+          <textarea id="remarks" name="remarks" class="form-control" rows="2" placeholder="e.g. Hemoglobin 14.2 g/dL, ELISA negative, good recovery"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('addDonationModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Donation</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

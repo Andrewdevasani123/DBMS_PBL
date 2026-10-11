@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Blood Issues{% endblock %}
+{% block header_title %}Blood Issue & Distribution Management{% endblock %}
+
+{% block content %}
+<!-- SECTION 1: APPROVED REQUESTS READY FOR ISSUE -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">
+        <i data-lucide="check-circle-2" style="width: 18px; height: 18px; color: var(--status-success);"></i>
+        Approved Requests Ready for Blood Issue
+      </div>
+      <div class="card-subtitle">
+        Uses MySQL transactions with row locking (SELECT ... FOR UPDATE) to ensure atomic stock decrement
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Req ID</th>
+          <th>Patient Name</th>
+          <th>Hospital</th>
+          <th>Blood Group</th>
+          <th>Required Units</th>
+          <th>Stock in Bank</th>
+          <th>Stock Validation</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for req in approved_requests %}
+        {% set stock_avail = stock_map.get(req.blood_group, 0) %}
+        {% set has_enough = stock_avail >= req.units_required %}
+        <tr>
+          <td><strong>#REQ-{{ req.request_id }}</strong></td>
+          <td style="font-weight: 600;">{{ req.patient_name }}</td>
+          <td>{{ req.hospital_name }}</td>
+          <td><span class="badge badge-blood">{{ req.blood_group }}</span></td>
+          <td><strong>{{ req.units_required }}</strong> unit(s)</td>
+          <td><strong>{{ stock_avail }}</strong> unit(s)</td>
+          <td>
+            {% if has_enough %}
+              <span class="badge badge-success">
+                <i data-lucide="check" style="width: 12px; height: 12px;"></i> Sufficient Stock
+              </span>
+            {% else %}
+              <span class="badge badge-danger">
+                <i data-lucide="alert-octagon" style="width: 12px; height: 12px;"></i> Insufficient Stock (Short by {{ req.units_required - stock_avail }})
+              </span>
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            {% if has_enough %}
+              <form method="POST" action="{{ url_for('process_issue') }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="request_id" value="{{ req.request_id }}">
+                <button 
+                  type="submit" 
+                  class="btn btn-primary btn-sm"
+                  onclick="return confirm('Confirm Blood Issue: Deduct {{ req.units_required }} units of {{ req.blood_group }} for {{ req.patient_name }}? This will execute an atomic MySQL transaction.')"
+                >
+                  <i data-lucide="send" style="width: 14px; height: 14px;"></i> Issue Blood
+                </button>
+              </form>
+            {% else %}
+              <button type="button" class="btn btn-outline btn-sm" disabled title="Insufficient stock available in inventory" style="opacity: 0.6; cursor: not-allowed;">
+                Insufficient Stock
+              </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 28px;">
+            No approved requests currently awaiting fulfillment. To issue blood, approve a pending request first.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- SECTION 2: HISTORICAL BLOOD ISSUES LEDGER -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">
+        <i data-lucide="archive" style="width: 18px; height: 18px; color: var(--text-muted);"></i>
+        Completed Blood Issues Ledger
+      </div>
+      <div class="card-subtitle">Showing {{ issue_history|length }} fulfilled blood delivery record(s)</div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Issue ID</th>
+          <th>Request ID</th>
+          <th>Patient Name</th>
+          <th>Hospital</th>
+          <th>Blood Group</th>
+          <th>Units Issued</th>
+          <th>Issue Date</th>
+          <th>Processed By</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for issue in issue_history %}
+        <tr>
+          <td><strong>#ISS-{{ issue.issue_id }}</strong></td>
+          <td><span style="color: var(--text-muted);">#REQ-{{ issue.request_id }}</span></td>
+          <td style="font-weight: 600;">{{ issue.patient_name }}</td>
+          <td>{{ issue.hospital_name }}</td>
+          <td><span class="badge badge-blood">{{ issue.blood_group }}</span></td>
+          <td><strong>{{ issue.units_issued }}</strong> unit(s)</td>
+          <td style="color: var(--text-muted);">{{ issue.issue_date }}</td>
+          <td style="color: var(--text-muted); font-size: 12px;">{{ issue.issued_by_name.split('(')[0] }}</td>
+          <td>
+            <span class="badge badge-success">
+              <i data-lucide="check" style="width: 12px; height: 12px;"></i> Fulfilled
+            </span>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 32px;">
+            No blood issues completed yet.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
